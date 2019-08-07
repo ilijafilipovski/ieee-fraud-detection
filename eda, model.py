@@ -127,14 +127,15 @@ def dropHighlyCorrelatedValues(df):
     df.drop(df[to_drop], axis=1, inplace = True)
 
 
-#train = pd.merge(transTrain, idTrain, on = 'TransactionID', how = 'left')
-#test = pd.merge(transTest, idTest, on = 'TransactionID', how = 'left')
-
+# =============================================================================
+# train = pd.merge(transTrain, idTrain, on = 'TransactionID', how = 'left')
+# test = pd.merge(transTest, idTest, on = 'TransactionID', how = 'left')
+# =============================================================================
 
 transTrain = reduce_mem_usage(transTrain)
 idTrain = reduce_mem_usage(idTrain)
 
-print(resumeTable(transTrain))
+resume = resumeTable(transTrain)
 print("transTrain has {} rows and {} columns".format(transTrain.shape[0], transTrain.shape[1]))
 
 transTrain['isFraud'] = transTrain['isFraud'].astype('object')
@@ -162,8 +163,10 @@ transTrainNumerical = pd.DataFrame(transTrain[num], columns=num)
 '''
     Napraven drop poradi toa sto distribucijata e losa i procentot na missing values e golem. >75%
 '''
-transTrain.drop(columns= 'P_emaildomain', axis = 1, inplace = True)
-transTrainCategorical.drop(columns= 'P_emaildomain', axis = 1, inplace = True)
+# =============================================================================
+# transTrain.drop(columns= 'P_emaildomain', axis = 1, inplace = True)
+# transTrainCategorical.drop(columns= 'P_emaildomain', axis = 1, inplace = True)
+# =============================================================================
 transTrain.drop(columns= 'TransactionID', axis = 1, inplace = True)
 transTrainNumerical.drop(columns= 'TransactionID', axis = 1, inplace = True)
 
@@ -174,54 +177,60 @@ transTrainNumerical.drop(columns= 'TransactionID', axis = 1, inplace = True)
     varijabla ja ima so target varijablata(isFraud)    
 '''
 
-correlationCategorical = dict()
+correlationCategoricalTarget = dict()
 for col in transTrainCategorical.columns:
     try:
         confususionMatrix = confusion_matrix(transTrainCategorical[col], transTrainCategorical['isFraud'])
         correlation = cramers_v(confususionMatrix)
-        correlationCategorical.update({col: correlation })
+        correlationCategoricalTarget.update({col: correlation })
     except:
         next
 
-correlationNumerical= dict()
+correlationNumericalTarget= dict()
 for col in transTrainNumerical.columns:
     try:
         confususionMatrix = confusion_matrix(transTrainNumerical[col], transTrainCategorical['isFraud'])
         correlation = cramers_v(confususionMatrix)
-        correlationNumerical.update({col: correlation })
+        correlationNumericalTarget.update({col: correlation })
     except:
         next
 
-highlyCorrelatedCategorical = dict()
-for (key, value) in correlationCategorical.items():
-   if value > 0.1:
-       highlyCorrelatedCategorical[key] = value
- 
-print('Highly Correlated Categorical variables: ')
-print(highlyCorrelatedCategorical)
-        
-#highlyCorrelatedNumerical = dict()
-#for (key, value) in correlationNumerical.items():
-#  if value > 0.5:
-#     highlyCorrelatedNumerical[key] = value
- 
-print('Highly Correlated Numerical variables: ')
-print(highlyCorrelatedNumerical)    
+# =============================================================================
+#
+# highlyCorrelatedCategorical = dict()
+# for (key, value) in correlationCategoricalTarget.items():
+#    if value > 0.1:
+#        highlyCorrelatedCategorical[key] = value
+#  
+# print('Highly Correlated Categorical variables: ')
+# print(highlyCorrelatedCategorical)
+#         
+# highlyCorrelatedNumerical = dict()
+# for (key, value) in correlationNumerical.items():
+#   if value > 0.5:
+#      highlyCorrelatedNumerical[key] = value
+# 
+# print('Highly Correlated Numerical variables: ')
+# print(highlyCorrelatedNumerical) 
+#    
+# =============================================================================
 
-rezime = resumeTable(transTrain)
-noMissingValues = list(rezime[rezime['Missing'] == 0]['Name'])
-lowMissingValues = list(rezime[rezime['Missing Percentage'] <= 52]['Name'])
-highMissingValues = list(rezime[rezime['Missing Percentage'] > 52]['Name'])
+noMissingValues = list(resume[resume['Missing'] == 0]['Name'])
+lowMissingValues = list(resume[resume['Missing Percentage'] <= 52]['Name'])
+highMissingValues = list(resume[resume['Missing Percentage'] > 52]['Name'])
 
-numericalCorr = transTrainNumerical.corr()
-numericalCorrAbs = transTrainNumerical.corr().abs()
-    
-ax = sns.heatmap(
-    numericalCorr, 
-    vmin=-1, vmax=1, center=0,
-    cmap=sns.diverging_palette(20, 220, n=200),
-    square=True
-)#----------------------------------------------------------------------------------------
+
+numericalCorr = transTrainNumerical.corr().abs()
+np.fill_diagonal(numericalCorr.values, -2)
+s = numericalCorr.unstack()
+numericalHighlyCorrelatedPairs = s.sort_values(kind="quicksort")
+numericalCorrUpper = numericalCorr.where(np.triu(np.ones(numericalCorr.shape), k=1).astype(np.bool))
+numericalToDrop = [column for column in numericalCorrUpper.columns if any(numericalCorrUpper[column] > 0.95)]
+numericalHighlyCorrelatedPairs = numericalHighlyCorrelatedPairs.to_frame()
+indexNames = numericalHighlyCorrelatedPairs[numericalHighlyCorrelatedPairs[0] == -2 ].index
+numericalHighlyCorrelatedPairs.drop(indexNames , inplace=True)
+
+#----------------------------------------------------------------------------------------
 '''
     Distribucija na target varijabla.
 '''
