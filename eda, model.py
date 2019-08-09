@@ -218,10 +218,13 @@ correlationNumericalTarget.rename(columns = {'index': 'Variable', 0: 'Correlatio
 #    
 # =============================================================================
 
-noMissingValues = list(resume[resume['Missing'] == 0]['Name'])
-lowMissingValues = list(resume[resume['Missing Percentage'] <= 52]['Name'])
-highMissingValues = list(resume[resume['Missing Percentage'] > 52]['Name'])
+# =============================================================================
+# noMissingValues = list(resume[resume['Missing'] == 0]['Name'])
+# lowMissingValues = list(resume[resume['Missing Percentage'] <= 52]['Name'])
+# highMissingValues = list(resume[resume['Missing Percentage'] > 52]['Name'])
+# =============================================================================
 
+transTrainNumerical = transTrainNumerical.dropna()
 
 numericalCorr = transTrainNumerical.corr().abs()
 np.fill_diagonal(numericalCorr.values, -2)
@@ -251,6 +254,7 @@ for p in ax.patches:
             height + 3,
             '{:1.2f}%'.format((height/total)*100),
             ha="center") 
+
 
 
 '''
@@ -305,6 +309,7 @@ gt = g1.twinx()
 gt = sns.pointplot(x = 'ProductCD', y = 'Fraud', data = tmp1, order=['W', 'H', 'C', 'S', 'R'], color= 'red')
 plt.show()
 
+
 tmp2 = createCrosstab(transTrain['card4'], transTrain['isFraud'])
 
 g = sns.countplot(x = 'card4', data = transTrain)
@@ -331,6 +336,7 @@ plt.show()
 
 tmp3 = createCrosstab(transTrain['card6'], transTrain['isFraud'])
 
+plt.figure(figsize=(8,8))
 g = sns.countplot(x = 'card6', data = transTrain)
 g.set_title('Card 6 Countplot', fontsize = 14)
 g.set_xlabel('Card 6 Values', fontsize = 14)
@@ -341,5 +347,23 @@ for p in g.patches:
             height + 3,
             '{:1.2f}%'.format(height/total*100),
             ha="center", fontsize=14)
+gt = g.twinx()
+gt = sns.pointplot(x = 'card6', y = 'Fraud',  data = tmp3, order=['credit', 'debit', 'debit or credit', 'charge card'], color = 'black')
+plt.show()
 
+plt.figure(figsize=(8,8))
+g1 = sns.countplot(x = 'card6', hue = 'isFraud', data = transTrain)
+plt.show()
 
+tmp4 = createCrosstab(transTrain['card3'], transTrain['isFraud'])
+
+plt.figure(figsize=(8,22))
+
+plt.subplot(411)
+g = sns.distplot(transTrain[transTrain['isFraud'] == 1]['card1'], label='Fraud')
+g = sns.distplot(transTrain[transTrain['isFraud'] == 0]['card1'], label='NoFraud')
+g.legend()
+g.set_title("Card 1 Values Distribution by Target", fontsize=20)
+g.set_xlabel("Card 1 Values", fontsize=18)
+g.set_ylabel("Probability", fontsize=18)
+plt.show()
