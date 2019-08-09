@@ -160,15 +160,15 @@ transTrainCategorical = pd.DataFrame(transTrain[cat], columns=cat)
 
 transTrainNumerical = pd.DataFrame(transTrain[num], columns=num)
 
-'''
-    Napraven drop poradi toa sto distribucijata e losa i procentot na missing values e golem. >75%
-'''
+
+
 # =============================================================================
 # transTrain.drop(columns= 'P_emaildomain', axis = 1, inplace = True)
 # transTrainCategorical.drop(columns= 'P_emaildomain', axis = 1, inplace = True)
+# 
+# transTrain.drop(columns= 'TransactionID', axis = 1, inplace = True)
+# transTrainNumerical.drop(columns= 'TransactionID', axis = 1, inplace = True)
 # =============================================================================
-transTrain.drop(columns= 'TransactionID', axis = 1, inplace = True)
-transTrainNumerical.drop(columns= 'TransactionID', axis = 1, inplace = True)
 
 
 
@@ -195,6 +195,9 @@ for col in transTrainNumerical.columns:
     except:
         next
 
+correlationNumericalTarget = pd.DataFrame.from_dict(correlationNumericalTarget, orient='index')
+correlationNumericalTarget = correlationNumericalTarget.reset_index()
+correlationNumericalTarget.rename(columns = {'index': 'Variable', 0: 'CorrelationValue'}, inplace = True)
 # =============================================================================
 #
 # highlyCorrelatedCategorical = dict()
@@ -223,13 +226,15 @@ highMissingValues = list(resume[resume['Missing Percentage'] > 52]['Name'])
 numericalCorr = transTrainNumerical.corr().abs()
 np.fill_diagonal(numericalCorr.values, -2)
 s = numericalCorr.unstack()
-numericalHighlyCorrelatedPairs = s.sort_values(kind="quicksort")
+numericalCorrelatedPairs = s.sort_values(kind="quicksort")
 numericalCorrUpper = numericalCorr.where(np.triu(np.ones(numericalCorr.shape), k=1).astype(np.bool))
 numericalToDrop = [column for column in numericalCorrUpper.columns if any(numericalCorrUpper[column] > 0.95)]
-numericalHighlyCorrelatedPairs = numericalHighlyCorrelatedPairs.to_frame()
-indexNames = numericalHighlyCorrelatedPairs[numericalHighlyCorrelatedPairs[0] == -2 ].index
-numericalHighlyCorrelatedPairs.drop(indexNames , inplace=True)
-
+numericalCorrelatedPairs = numericalCorrelatedPairs.to_frame()
+indexNames = numericalCorrelatedPairs[numericalCorrelatedPairs[0] == -2 ].index
+numericalCorrelatedPairs.drop(indexNames , inplace=True)
+numericalCorrelatedPairs = numericalCorrelatedPairs.reset_index()
+numericalCorrelatedPairs.drop(0, axis = 0, inplace = True)
+numericalCorrelatedPairs.iloc[1::2]
 #----------------------------------------------------------------------------------------
 '''
     Distribucija na target varijabla.
