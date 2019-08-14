@@ -125,6 +125,15 @@
         upper = corr_matrix.where(np.triu(np.ones(corr_matrix.shape), k=1).astype(np.bool))
         to_drop = [column for column in upper.columns if any(upper[column] > 0.70)]
         df.drop(df[to_drop], axis=1, inplace = True)
+
+    def createCountplotWithTarget(col1, col2):             
+        tmp = createCrosstab(transTrain[col1], transTrain[col2])
+        g = sns.countplot(transTrain[col1], order = list(tmp[col1].values))
+        g.set_title("{} Distribution\n Count and %Fraud by each category".format(col1), fontsize=18)
+        g1 = g.twinx()
+        g1 = sns.pointplot(x = col1, y = 'Fraud', data = tmp,  order = list(tmp[col1].values))
+        g1.set_ylim(0,20)
+        g1.set_ylabel('% of fraudalent transactions', fontsize = 14)        
     
     
     # =============================================================================
@@ -297,7 +306,7 @@
     TransactionAmtMeanNoFraud = transTrain[transTrain['isFraud'] == 0]['TransactionAmt'].mean()
     
     
-    resumeTable(transTrain[['card1', 'card2', 'card3', 'card4', 'card5', 'card6']])
+        Table(transTrain[['card1', 'card2', 'card3', 'card4', 'card5', 'card6']])
     
     
     tmp1 = createCrosstab(transTrain['ProductCD'], transTrain['isFraud'])
@@ -338,45 +347,46 @@
                 ha="center", fontsize=14)
     plt.show()
     
-    g1 = sns.countplot(x = 'card4', hue='isFraud', data = transTrain)
-    g1.set_xlabel('Card 4', fontsize = 14)
-    g1.set_ylabel('Card 4 count', fontsize = 14)
-    g1.set_title('Card 4 count distribution', fontsize = 14)
-    gt = g1.twinx()
-    gt = sns.pointplot(x = 'card4', y = 'Fraud' , data = tmp2, order=['discover', 'mastercard', 'visa', 'american express'], color = 'black')
-    plt.show()
     
-    g1 = sns.countplot(x = transTrain[transTrain['isFraud'] == 1]['card4'])
-    g1.set_xlabel('Card 4', fontsize = 14)
-    g1.set_ylabel('Card 4 count', fontsize = 14)
-    g1.set_title('Card 4 count distribution', fontsize = 14)
-    gt = g1.twinx()
-    gt = sns.pointplot(x = 'card4', y = 'Fraud' , data = tmp2, order=['discover', 'mastercard', 'visa', 'american express'], color = 'black')
-    plt.show()
+    gc4 = createCountplotWithTarget('card4', 'isFraud')
+# =============================================================================
+#     g1 = sns.countplot(x = 'card4', hue='isFraud', data = transTrain)
+#     g1.set_xlabel('Card 4', fontsize = 14)
+#     g1.set_ylabel('Card 4 count', fontsize = 14)
+#     g1.set_title('Card 4 count distribution', fontsize = 14)
+#     gt = g1.twinx()
+#     gt = sns.pointplot(x = 'card4', y = 'Fraud' , data = tmp2, order=['discover', 'mastercard', 'visa', 'american express'], color = 'black')
+#     plt.show()
+# =============================================================================
     
     
-    tmp3 = createCrosstab(transTrain['card6'], transTrain['isFraud'])
     
-    plt.figure(figsize=(8,8))
-    g = sns.countplot(x = 'card6', data = transTrain)
-    g.set_title('Card 6 Countplot', fontsize = 14)
-    g.set_xlabel('Card 6 Values', fontsize = 14)
-    g.set_ylabel('Card 6 Count', fontsize = 14)
-    for p in g.patches:
-        height = p.get_height()
-        g.text(p.get_x()+p.get_width()/2.,
-                height + 3,
-                '{:1.2f}%'.format(height/total*100),
-                ha="center", fontsize=14)
-    gt = g.twinx()
-    gt = sns.pointplot(x = 'card6', y = 'Fraud',  data = tmp3, order=['credit', 'debit', 'debit or credit', 'charge card'], color = 'black')
-    plt.show()
+    gc6 = createCountplotWithTarget('card6', 'isFraud')
+# =============================================================================
+#     tmp3 = createCrosstab(transTrain['card6'], transTrain['isFraud'])
+#     
+#     plt.figure(figsize=(8,8))
+#     g = sns.countplot(x = 'card6', data = transTrain)
+#     g.set_title('Card 6 Countplot', fontsize = 14)
+#     g.set_xlabel('Card 6 Values', fontsize = 14)
+#     g.set_ylabel('Card 6 Count', fontsize = 14)
+#     for p in g.patches:
+#         height = p.get_height()
+#         g.text(p.get_x()+p.get_width()/2.,
+#                 height + 3,
+#                 '{:1.2f}%'.format(height/total*100),
+#                 ha="center", fontsize=14)
+#     gt = g.twinx()
+#     gt = sns.pointplot(x = 'card6', y = 'Fraud',  data = tmp3, order=['credit', 'debit', 'debit or credit', 'charge card'], color = 'black')
+#     plt.show()
+# =============================================================================
+    
+    
     
     plt.figure(figsize=(8,8))
     g1 = sns.countplot(x = 'card6', hue = 'isFraud', data = transTrain)
     plt.show()
     
-    tmp4 = createCrosstab(transTrain['card1'], transTrain['isFraud'])
     
     plt.figure(figsize=(8,22))
     plt.subplot(411)
@@ -387,3 +397,41 @@
     g.set_xlabel("Card 1 Values", fontsize=18)
     g.set_ylabel("Probability", fontsize=18)
     plt.show()
+    
+    plt.figure(figsize=(8,22))
+    plt.subplot(412)
+    g = sns.distplot(transTrain[transTrain['isFraud'] == 0]['card2'].dropna(), label = 'No Fraud')
+    g = sns.distplot(transTrain[transTrain['isFraud'] == 1]['card2'].dropna(), label = 'Fraud')
+    g.legend()
+    
+    plt.figure(figsize=(8,22))
+    plt.subplot(413)
+    g = sns.distplot(transTrain[transTrain['isFraud'] == 0]['card3'].dropna(), label = 'No Fraud')
+    g = sns.distplot(transTrain[transTrain['isFraud'] == 1]['card3'].dropna(), label = 'Fraud')
+    g.legend()
+    g.set(xlim = (140, 200))
+    
+    plt.figure(figsize=(8,22))
+    plt.subplot(414)
+    g = sns.distplot(transTrain[transTrain['isFraud'] == 0]['card5'].dropna(), label = 'No Fraud')
+    g = sns.distplot(transTrain[transTrain['isFraud'] == 1]['card5'].dropna(), label = 'Fraud')
+    g.legend()
+    g.set(xlim = (90, 240))
+
+    resumeTable(transTrain[['M1', 'M2', 'M3', 'M4', 'M5', 'M6', 'M7', 'M8', 'M9']])
+    for col in transTrain.columns:
+        if 'M' in col:
+            transTrain[col] = transTrain[col].fillna('Miss')
+
+    
+    createCountplotWithTarget('M1', 'isFraud')
+    createCountplotWithTarget('M2', 'isFraud')        
+    createCountplotWithTarget('M3', 'isFraud')
+    createCountplotWithTarget('M4', 'isFraud')
+    createCountplotWithTarget('M5', 'isFraud')
+    createCountplotWithTarget('M6', 'isFraud')
+    createCountplotWithTarget('M7', 'isFraud')
+    createCountplotWithTarget('M8', 'isFraud')
+    createCountplotWithTarget('M9', 'isFraud')
+   
+    
