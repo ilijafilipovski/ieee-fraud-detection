@@ -5,6 +5,8 @@
     import matplotlib.pyplot as plt
     import seaborn as sns
     import scipy.stats as ss
+    pd.set_option('display.expand_frame_repr', False)
+
     
     
     transTest = pd.read_csv('test_transaction.csv')
@@ -131,9 +133,27 @@
         g = sns.countplot(df[col1], order = list(tmp[col1].values))
         g.set_title("{} Distribution\n Count and %Fraud by each category".format(col1), fontsize=18)
         g1 = g.twinx()
-        g1 = sns.pointplot(x = col1, y = 'Fraud', data = tmp,  order = list(tmp[col1].values))
-        g1.set_ylim(0,20)
-        g1.set_ylabel('% of fraudalent transactions', fontsize = 14)  
+        g1 = sns.pointplot(x = col1, y = 'Fraud', data = tmp, color = 'black',  order = list(tmp[col1].values))
+        g1.set_ylim(0,50)
+        g1.set_ylabel('% of fraudalent transactions', fontsize = 14)
+        
+    def distributionByTarget(df, col1, col2):
+        #col2 is target
+        g = sns.distplot(df[df[col2] == 1][col1], label='Fraud')
+        g = sns.distplot(df[df[col2] == 0][col1], label='NoFraud')
+        g.legend()
+        g.set_title("{} Distribution\n Count and %Fraud by each category".format(col1), fontsize=18)
+        g.set_xlabel("{} Values".format(col1), fontsize=18)
+        g.set_ylabel("Probability", fontsize=18)
+        plt.show()    
+        
+    def replaceMissingValues(df, keyword):
+        for col in df.columns:
+            if keyword in col:
+                if df[col].dtype == 'O':
+                    df[col] = df[col].fillna('Miss')
+                else:
+                    df[col] = df[col].fillna(0)    
     
     
     # =============================================================================
@@ -335,13 +355,6 @@
     
     resumeTable(transTrain[['card1', 'card2', 'card3', 'card4', 'card5', 'card6']])
 
-    for col in transTrain.columns:
-        if 'card' in col:
-            if transTrain[col].dtype == 'O':
-                transTrain[col] = transTrain[col].fillna('Miss')
-            else:
-                transTrain[col] = transTrain[col].fillna(0)
-                
 
     g = sns.countplot(x = 'card4', data = transTrain)
     g.set_xlabel('Card 4', fontsize = 14)
@@ -356,7 +369,7 @@
     plt.show()
     
     
-    gc4 = createCountplotWithTarget(transTrain, 'card4',  'isFraud')
+    gcard4 = createCountplotWithTarget(transTrain, 'card4',  'isFraud')
 # =============================================================================
 #     g1 = sns.countplot(x = 'card4', hue='isFraud', data = transTrain)
 #     g1.set_xlabel('Card 4', fontsize = 14)
@@ -369,7 +382,7 @@
     
     
     
-    gc6 = createCountplotWithTarget(transTrain, 'card6', 'isFraud')
+    gcard6 = createCountplotWithTarget(transTrain, 'card6', 'isFraud')
 # =============================================================================
 #     tmp3 = createCrosstab(transTrain['card6'], transTrain['isFraud'])
 #     
@@ -388,15 +401,9 @@
 #     gt = sns.pointplot(x = 'card6', y = 'Fraud',  data = tmp3, order=['credit', 'debit', 'debit or credit', 'charge card'], color = 'black')
 #     plt.show()
 # =============================================================================
-    
-    
-    
-    plt.figure(figsize=(8,8))
-    g1 = sns.countplot(x = 'card6', hue = 'isFraud', data = transTrain)
-    plt.show()
-    
+
  
-    gc1 = distributionByTarget(transTrain, 'card1', 'isFraud')    
+    gcard1 = distributionByTarget(transTrain, 'card1', 'isFraud')    
 # =============================================================================
 #     plt.figure(figsize=(8,22))
 #     plt.subplot(411)
@@ -411,7 +418,7 @@
 # =============================================================================
 
 
-    gc2 = distributionByTarget(transTrain, 'card2', 'isFraud')    
+    gcard2 = distributionByTarget(transTrain, 'card2', 'isFraud')    
 # =============================================================================
 #     plt.figure(figsize=(8,22))
 #     plt.subplot(412)
@@ -437,10 +444,7 @@
     g.set(xlim = (90, 240))
 
     resumeTable(transTrain[['M1', 'M2', 'M3', 'M4', 'M5', 'M6', 'M7', 'M8', 'M9']])
-    for col in transTrain.columns:
-        if 'M' in col:
-            transTrain[col] = transTrain[col].fillna('Miss')
-
+    replaceMissingValues(transTrain,'M')
     
     gm1 = createCountplotWithTarget(transTrain, 'M1', 'isFraud')
     gm2 = createCountplotWithTarget(transTrain, 'M2', 'isFraud')        
@@ -453,20 +457,66 @@
     gm9 = createCountplotWithTarget(transTrain, 'M9', 'isFraud')
    
     resumeTable(transTrain[['addr1', 'addr2']])
-    for col in transTrain.columns:
-        if 'addr' in col:
-            transTrain[col] = transTrain[col].fillna('Miss')
-
-    def distributionByTarget(df, col1, col2):
-        #col2 is target
-        g = sns.distplot(df[df[col2] == 1][col1], label='Fraud')
-        g = sns.distplot(df[df[col2] == 0][col1], label='NoFraud')
-        g.legend()
-        g.set_title("Card 1 Values Distribution by Target", fontsize=20)
-        g.set_xlabel("Card 1 Values", fontsize=18)
-        g.set_ylabel("Probability", fontsize=18)
-        plt.show()
+    replaceMissingValues(transTrain,'addr')
     
-    distributionByTarget(transTrain, 'card2', 'isFraud')
+    ga1 = distributionByTarget(transTrain, 'addr1', 'isFraud')
+    ga2 = distributionByTarget(transTrain, 'addr2', 'isFraud')
+    
+    resumeTable(transTrain[['P_emaildomain']])
+    replaceMissingValues(transTrain,'P_emaildomain')
+    
+    transTrain.loc[transTrain['P_emaildomain'].isin(['gmail.com', 'gmail']), 'P_emaildomain'] = 'Google'
+    transTrain.loc[transTrain['P_emaildomain'].isin(['yahoo.com', 'yahoo.com.mx',  'yahoo.co.uk','yahoo.co.jp', 'yahoo.de', 'yahoo.fr','yahoo.es']), 'P_emaildomain'] = 'Yahoo'
+    transTrain.loc[transTrain['P_emaildomain'].isin(['hotmail.com','outlook.com','msn.com', 'live.com.mx', 'hotmail.es','hotmail.co.uk', 'hotmail.de', 'outlook.es', 'live.com', 'live.fr', 'hotmail.fr']), 'P_emaildomain'] = 'Microsoft'
+    transTrain.loc[transTrain.P_emaildomain.isin(transTrain.P_emaildomain.value_counts()[transTrain.P_emaildomain.value_counts() <= 500 ].index), 'P_emaildomain'] = "Others"    
+    plt.figure(figsize=(28,14))
+    gp = createCountplotWithTarget(transTrain, 'P_emaildomain', 'isFraud')
+    
+    resumeTable(transTrain[['R_emaildomain']])
+    replaceMissingValues(transTrain,'R_emaildomain')
+    
+    transTrain.loc[transTrain['R_emaildomain'].isin(['gmail.com', 'gmail']), 'R_emaildomain'] = 'Google'
+    transTrain.loc[transTrain['R_emaildomain'].isin(['yahoo.com', 'yahoo.com.mx',  'yahoo.co.uk','yahoo.co.jp', 'yahoo.de', 'yahoo.fr','yahoo.es']), 'R_emaildomain'] = 'Yahoo'
+    transTrain.loc[transTrain['R_emaildomain'].isin(['hotmail.com','outlook.com','msn.com', 'live.com.mx', 'hotmail.es','hotmail.co.uk', 'hotmail.de', 'outlook.es', 'live.com', 'live.fr', 'hotmail.fr']), 'R_emaildomain'] = 'Microsoft'
+    transTrain.loc[transTrain.P_emaildomain.isin(transTrain.P_emaildomain.value_counts()[transTrain.P_emaildomain.value_counts() <= 500 ].index), 'R_emaildomain'] = "Others"    
+    plt.figure(figsize=(40,20))
+    gp = createCountplotWithTarget(transTrain, 'R_emaildomain', 'isFraud')
+    
+    resumeTable(transTrain[['C1', 'C2', 'C3', 'C4', 'C5', 'C6', 'C7', 'C8', 'C9', 'C10', 'C11', 'C12', 'C13', 'C14']])
+    
+    transTrain.loc[transTrain.C1.isin(transTrain.C1.value_counts()[transTrain.C1.value_counts() <= 400 ].index), 'C1'] = "Others"
+    
+    plt.figure(figsize = (15,8))
+    gc1 = createCountplotWithTarget(transTrain, 'C1', 'isFraud')
+    
+    transTrain.loc[transTrain.C2.isin(transTrain.C2.value_counts()[transTrain.C2.value_counts() <= 350 ].index), 'C2'] = "Others"
+    plt.figure(figsize = (10,10))
+    gc2 = createCountplotWithTarget(transTrain, 'C2', 'isFraud')
+    
+    transTrain.loc[transTrain.C3.isin(transTrain.C3.value_counts()[transTrain.C3.value_counts() <= 2000 ].index), 'C3'] = "Others"    
+    gc3 = createCountplotWithTarget(transTrain, 'C3', 'isFraud')
+    
+    transTrain.loc[transTrain.C4.isin(transTrain.C4.value_counts()[transTrain.C4.value_counts() <= 350 ].index), 'C4'] = "Others"    
+    gc4 = createCountplotWithTarget(transTrain, 'C4', 'isFraud')
+    
+    transTrain.loc[transTrain.C5.isin(transTrain.C5.value_counts()[transTrain.C5.value_counts() <= 400 ].index), 'C5'] = "Others"
+    plt.figure(figsize = (10, 8))
+    gc5 = createCountplotWithTarget(transTrain, 'C5', 'isFraud')
+
+    transTrain.loc[transTrain.C6.isin(transTrain.C6.value_counts()[transTrain.C6.value_counts() <= 700 ].index), 'C6'] = "Others"
+    gc6 = createCountplotWithTarget(transTrain, 'C6', 'isFraud')
+    
+    transTrain.loc[transTrain.C7.isin(transTrain.C7.value_counts()[transTrain.C7.value_counts() <= 1000 ].index), 'C7'] = "Others"
+    gc7 = createCountplotWithTarget(transTrain, 'C7', 'isFraud')
+
+    transTrain.loc[transTrain.C8.isin(transTrain.C8.value_counts()[transTrain.C8.value_counts() <= 1000 ].index), 'C8'] = "Others"
+
+    
+    
+ 
+    
+
+
+    
         
     
