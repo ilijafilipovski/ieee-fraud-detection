@@ -5,6 +5,7 @@ from scipy import stats
 import matplotlib.pyplot as plt
 import seaborn as sns
 import scipy.stats as ss
+import datetime
 pd.set_option('display.expand_frame_repr', False)
 
 
@@ -453,17 +454,12 @@ g.set(xlim = (90, 240))
 resumeTable(transTrain[['M1', 'M2', 'M3', 'M4', 'M5', 'M6', 'M7', 'M8', 'M9']])
 replaceMissingValues(transTrain,'M')
 
-gm1 = createCountplotWithTarget(transTrain, 'M1', 'isFraud')
-gm2 = createCountplotWithTarget(transTrain, 'M2', 'isFraud')        
-gm3 = createCountplotWithTarget(transTrain, 'M3', 'isFraud')
-gm4 = createCountplotWithTarget(transTrain, 'M4', 'isFraud')
-gm5 = createCountplotWithTarget(transTrain, 'M5', 'isFraud')
-gm6 = createCountplotWithTarget(transTrain, 'M6', 'isFraud')
-gm7 = createCountplotWithTarget(transTrain, 'M7', 'isFraud')
-gm8 = createCountplotWithTarget(transTrain, 'M8', 'isFraud')
-gm9 = createCountplotWithTarget(transTrain, 'M9', 'isFraud')
 
-
+for col in transTrain.columns:
+    if 'M' in col:
+        plt.figure()
+        createCountplotWithTarget(transTrain, col, 'isFraud')
+        plt.show()
    
 resumeTable(transTrain[['addr1', 'addr2']])
 replaceMissingValues(transTrain,'addr')
@@ -542,9 +538,18 @@ gc13 = createCountplotWithTarget(transTrain, 'C13', 'isFraud')
 transTrain.loc[transTrain.C14.isin(transTrain.C14.value_counts()[transTrain.C14.value_counts() <= 350 ].index), 'C14'] = "Others"
 gc14 = createCountplotWithTarget(transTrain, 'C14', 'isFraud')
 
-## DA SE DODADAT DATUMI
+START_DATE = '2017-12-01'
+startdate = datetime.datetime.strptime(START_DATE, "%Y-%m-%d")
+transTrain['Date'] = transTrain['TransactionDT'].apply(lambda x: (startdate + datetime.timedelta(seconds = x)))
 
-#
+transTrain['Weekdays'] = transTrain['Date'].dt.dayofweek
+transTrain['Hours'] = transTrain['Date'].dt.hour
+transTrain['Days'] = transTrain['Date'].dt.day
+
+gdays = createCountplotWithTarget(transTrain, 'Days', 'isFraud')
+gweekdays = createCountplotWithTarget(transTrain, 'Weekdays', 'isFraud')
+ghours = createCountplotWithTarget(transTrain, 'Hours', 'isFraud')
+
 numId, catId = [], []
 dtypeSeparation(idTrain, numId, catId)
 resumeTable(idTrain[catId])
@@ -572,5 +577,22 @@ df_train.loc[df_train['id_30'].str.contains('Android'), 'id_30'] = 'Android'
 
 plt.figure()
 createCountplotWithTarget(df_train, 'id_30', 'isFraud')
+
+df_train.loc[df_train['id_31'].str.contains('chrome'), 'id_31'] = 'Chrome'
+df_train.loc[df_train['id_31'].str.contains('firefox'), 'id_31'] = 'Firefox'
+df_train.loc[df_train['id_31'].str.contains('samsung'), 'id_31'] = 'Samsung'
+df_train.loc[df_train['id_31'].str.contains('safari'), 'id_31'] = 'Safari'
+df_train.loc[df_train['id_31'].str.contains('edge'), 'id_31'] = 'Edge'
+df_train.loc[df_train['id_31'].str.contains('ie'), 'id_31'] = 'IE'
+df_train.loc[df_train['id_31'].str.contains('opera'), 'id_31'] = 'Opera'
+df_train.loc[df_train.id_31.isin(df_train.id_31.value_counts()[df_train.id_31.value_counts() < 200].index), 'id_31'] = "Others"
+createCountplotWithTarget(df_train, 'id_31', 'isFraud')
+
+for col in numTrain:
+    if 'id_' in col:
+        plt.figure()
+        distributionByTarget(df_train, col, 'isFraud')
+        plt.show()
+
 
 
