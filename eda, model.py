@@ -6,7 +6,18 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 import scipy.stats as ss
 import datetime
+from sklearn import linear_model
+from xgboost import XGBClassifier
+import xgboost as xgb
+from sklearn.model_selection import KFold,TimeSeriesSplit
+from sklearn.metrics import roc_auc_score
+from sklearn.metrics import make_scorer
+from sklearn import preprocessing
+from sklearn.metrics import confusion_matrix, roc_auc_score, classification_report
+from sklearn.model_selection import StratifiedKFold, cross_val_score, KFold
 pd.set_option('display.expand_frame_repr', False)
+from sklearn.preprocessing import LabelEncoder
+
 
 
 
@@ -161,14 +172,24 @@ def replaceMissingValues(df, keyword):
             if df[col].dtype == 'O':
                 df[col] = df[col].fillna('Miss')
             else:
-                df[col] = df[col].fillna(0)    
+                df[col] = df[col].fillna(0)  
+
+def replaceEmails(df, col):        
+    df.loc[df[col].isin(['gmail.com', 'gmail']), col] = 'Google'
+    df.loc[df[col].isin(['yahoo.com', 'yahoo.com.mx',  'yahoo.co.uk','yahoo.co.jp', 'yahoo.de', 'yahoo.fr','yahoo.es']), col] = 'Yahoo'
+    df.loc[df[col].isin(['hotmail.com','outlook.com','msn.com', 'live.com.mx', 'hotmail.es','hotmail.co.uk', 'hotmail.de', 'outlook.es', 'live.com', 'live.fr', 'hotmail.fr']), col] = 'Microsoft'
+    df.loc[df[col].isin(df[col].value_counts()[df[col].value_counts() <= 500 ].index), col] = "Others"    
+
 
 
 df_train = transTrain.merge(idTrain, how='left', left_index=True, right_index=True, on = 'TransactionID')
+df_test = transTest.merge(idTest, how='left', left_index=True, right_index=True, on='TransactionID')
+df_train = reduce_mem_usage(df_train)
+df_test = reduce_mem_usage(df_test)
 
 transTrain = reduce_mem_usage(transTrain)
 idTrain = reduce_mem_usage(idTrain)
-df_train = reduce_mem_usage(df_train)
+
 
 resume = resumeTable(transTrain)
 print("transTrain has {} rows and {} columns".format(transTrain.shape[0], transTrain.shape[1]))
@@ -214,21 +235,21 @@ varijabla ja ima so target varijablata(isFraud)
 
 correlationCategoricalTarget = dict()
 for col in transTrainCategorical.columns:
-try:
-confususionMatrix = confusion_matrix(transTrainCategorical[col], transTrainCategorical['isFraud'])
-correlation = cramers_v(confususionMatrix)
-correlationCategoricalTarget.update({col: correlation })
-except:
-next
+    try:
+        confususionMatrix = confusion_matrix(transTrainCategorical[col], transTrainCategorical['isFraud'])
+        correlation = cramers_v(confususionMatrix)
+        correlationCategoricalTarget.update({col: correlation })
+    except:
+        next
 
 correlationNumericalTarget= dict()
 for col in transTrainNumerical.columns:
-try:
-confususionMatrix = confusion_matrix(transTrainNumerical[col], transTrainCategorical['isFraud'])
-correlation = cramers_v(confususionMatrix)
-correlationNumericalTarget.update({col: correlation })
-except:
-next
+    try:
+        confususionMatrix = confusion_matrix(transTrainNumerical[col], transTrainCategorical['isFraud'])
+        correlation = cramers_v(confususionMatrix)
+        correlationNumericalTarget.update({col: correlation })
+    except:
+        next
 
 correlationNumericalTarget = pd.DataFrame.from_dict(correlationNumericalTarget, orient='index')
 correlationNumericalTarget = correlationNumericalTarget.reset_index()
@@ -279,7 +300,9 @@ Distribucija na target varijabla.
 '''
 
 transTrain['TransactionAmt'] = transTrain['TransactionAmt'].astype(float)
+transTest['TransactionAmt'] = transTrain['TransactionAmt'].astype(float)
 total = float(len(transTrain))
+plt.figure()
 ax = sns.countplot(x= 'isFraud', data=transTrain)
 ax.set_xlabel('isFraud?')
 ax.set_ylabel('Count')
@@ -289,7 +312,7 @@ for p in ax.patches:
     height + 3,
     '{:1.2f}%'.format((height/total)*100),
     ha="center") 
-
+plt.show()
 
 
 '''
@@ -309,13 +332,14 @@ g = sns.distplot(transTrain[transTrain['TransactionAmt'] <= 1000]['TransactionAm
 g.set_xlabel('TransactionAmt', fontsize = 15)
 plt.show()
 
-
+plt.figure()
 g = sns.distplot(np.log(transTrain[transTrain['isFraud'] == 1]['TransactionAmt']), label = 'Fraud')
 g = sns.distplot(np.log(transTrain[transTrain['isFraud'] == 0]['TransactionAmt']), label = 'No Fraud')
 g.set(xlim = (1))
 g.legend()
 plt.show()
 
+plt.figure()
 g = sns.distplot(transTrain[(transTrain['isFraud'] == 1) & (transTrain.TransactionAmt <1000)]['TransactionAmt'], label = 'Fraud')
 g = sns.distplot(transTrain[(transTrain['isFraud'] == 0) & (transTrain.TransactionAmt <1000)]['TransactionAmt'], label = 'No Fraud')
 g.set(xlim = (0.001))
@@ -335,6 +359,7 @@ TransactionAmtMeanNoFraud = transTrain[transTrain['isFraud'] == 0]['TransactionA
 
 tmp1 = createCrosstab(transTrain['ProductCD'], transTrain['isFraud'])
 
+plt.figure()
 g = sns.countplot(x = 'ProductCD', data = transTrain)
 g.set_xlabel('ProductCD', fontsize = 13)
 g.set_ylabel('ProductCD Counts', fontsize=13)
@@ -346,6 +371,7 @@ for p in g.patches:
     '{:1.2f}%'.format(height/total*100),
     ha="center", fontsize=13)
 plt.show()
+
 
 g1 = sns.countplot(x = 'ProductCD', hue='isFraud', data = transTrain)
 g1.set_xlabel('isFraud by ProductCD', fontsize = 13)
@@ -377,6 +403,7 @@ resumeTable(transTrain[['card1', 'card2', 'card3', 'card4', 'card5', 'card6']])
 # 
 # =============================================================================
 replaceMissingValues(transTrain,'card4')
+replaceMissingValues(transTest,'card4')
 gcard4 = createCountplotWithTarget(transTrain, 'card4',  'isFraud')
 # =============================================================================
 #     g1 = sns.countplot(x = 'card4', hue='isFraud', data = transTrain)
@@ -389,7 +416,8 @@ gcard4 = createCountplotWithTarget(transTrain, 'card4',  'isFraud')
 # =============================================================================
 
 
-replaceMissingValues(transTrain,'card6')   
+replaceMissingValues(transTrain,'card6') 
+replaceMissingValues(transTest,'card6')   
 gcard6 = createCountplotWithTarget(transTrain, 'card6', 'isFraud')
 # =============================================================================
 #     tmp3 = createCrosstab(transTrain['card6'], transTrain['isFraud'])
@@ -411,6 +439,7 @@ gcard6 = createCountplotWithTarget(transTrain, 'card6', 'isFraud')
 # =============================================================================
 
 replaceMissingValues(transTrain,'card1')
+replaceMissingValues(transTest,'card1')
 gcard1 = distributionByTarget(transTrain, 'card1', 'isFraud')    
 # =============================================================================
 #     plt.figure(figsize=(8,22))
@@ -426,6 +455,7 @@ gcard1 = distributionByTarget(transTrain, 'card1', 'isFraud')
 # =============================================================================
 
 replaceMissingValues(transTrain,'card2')
+replaceMissingValues(transTest,'card2')
 gcard2 = distributionByTarget(transTrain, 'card2', 'isFraud')    
 # =============================================================================
 #     plt.figure(figsize=(8,22))
@@ -436,6 +466,7 @@ gcard2 = distributionByTarget(transTrain, 'card2', 'isFraud')
 #     
 # =============================================================================
 replaceMissingValues(transTrain,'card3')
+replaceMissingValues(transTest,'card3')
 plt.figure(figsize=(8,22))
 plt.subplot(413)
 g = sns.distplot(transTrain[transTrain['isFraud'] == 0]['card3'], label = 'No Fraud')
@@ -444,6 +475,7 @@ g.legend()
 g.set(xlim = (140, 200))
 
 replaceMissingValues(transTrain,'card5')    
+replaceMissingValues(transTest,'card5')    
 plt.figure(figsize=(8,22))
 plt.subplot(414)
 g = sns.distplot(transTrain[transTrain['isFraud'] == 0]['card5'], label = 'No Fraud')
@@ -453,6 +485,8 @@ g.set(xlim = (90, 240))
 
 resumeTable(transTrain[['M1', 'M2', 'M3', 'M4', 'M5', 'M6', 'M7', 'M8', 'M9']])
 replaceMissingValues(transTrain,'M')
+replaceMissingValues(transTest,'M')
+
 
 
 for col in transTrain.columns:
@@ -463,106 +497,140 @@ for col in transTrain.columns:
    
 resumeTable(transTrain[['addr1', 'addr2']])
 replaceMissingValues(transTrain,'addr')
+replaceMissingValues(transTest,'addr')
 
 ga1 = distributionByTarget(transTrain, 'addr1', 'isFraud')
 ga2 = distributionByTarget(transTrain, 'addr2', 'isFraud')
 
 resumeTable(transTrain[['P_emaildomain']])
 replaceMissingValues(transTrain,'P_emaildomain')
+replaceMissingValues(transTest,'P_emaildomain')
 
-transTrain.loc[transTrain['P_emaildomain'].isin(['gmail.com', 'gmail']), 'P_emaildomain'] = 'Google'
-transTrain.loc[transTrain['P_emaildomain'].isin(['yahoo.com', 'yahoo.com.mx',  'yahoo.co.uk','yahoo.co.jp', 'yahoo.de', 'yahoo.fr','yahoo.es']), 'P_emaildomain'] = 'Yahoo'
-transTrain.loc[transTrain['P_emaildomain'].isin(['hotmail.com','outlook.com','msn.com', 'live.com.mx', 'hotmail.es','hotmail.co.uk', 'hotmail.de', 'outlook.es', 'live.com', 'live.fr', 'hotmail.fr']), 'P_emaildomain'] = 'Microsoft'
-transTrain.loc[transTrain.P_emaildomain.isin(transTrain.P_emaildomain.value_counts()[transTrain.P_emaildomain.value_counts() <= 500 ].index), 'P_emaildomain'] = "Others"    
+replaceEmails(transTrain, 'P_emaildomain')
+replaceEmails(transTest, 'P_emaildomain')
+
 plt.figure(figsize=(28,14))
 gp = createCountplotWithTarget(transTrain, 'P_emaildomain', 'isFraud')
 
 resumeTable(transTrain[['R_emaildomain']])
 replaceMissingValues(transTrain,'R_emaildomain')
 
-transTrain.loc[transTrain['R_emaildomain'].isin(['gmail.com', 'gmail']), 'R_emaildomain'] = 'Google'
-transTrain.loc[transTrain['R_emaildomain'].isin(['yahoo.com', 'yahoo.com.mx',  'yahoo.co.uk','yahoo.co.jp', 'yahoo.de', 'yahoo.fr','yahoo.es']), 'R_emaildomain'] = 'Yahoo'
-transTrain.loc[transTrain['R_emaildomain'].isin(['hotmail.com','outlook.com','msn.com', 'live.com.mx', 'hotmail.es','hotmail.co.uk', 'hotmail.de', 'outlook.es', 'live.com', 'live.fr', 'hotmail.fr']), 'R_emaildomain'] = 'Microsoft'
-transTrain.loc[transTrain.P_emaildomain.isin(transTrain.P_emaildomain.value_counts()[transTrain.P_emaildomain.value_counts() <= 500 ].index), 'R_emaildomain'] = "Others"    
+replaceEmails(transTrain, 'R_emaildomain')
+replaceEmails(transTest, 'R_emaildomain')
 plt.figure(figsize=(40,20))
 gp = createCountplotWithTarget(transTrain, 'R_emaildomain', 'isFraud')
 
 resumeTable(transTrain[['C1', 'C2', 'C3', 'C4', 'C5', 'C6', 'C7', 'C8', 'C9', 'C10', 'C11', 'C12', 'C13', 'C14']])
 
 transTrain.loc[transTrain.C1.isin(transTrain.C1.value_counts()[transTrain.C1.value_counts() <= 400 ].index), 'C1'] = "Others"
+transTest.loc[transTest.C1.isin(transTrain.C1.value_counts()[transTrain.C1.value_counts() <= 400 ].index), 'C1'] = "Others"
 
 plt.figure(figsize = (15,8))
 gc1 = createCountplotWithTarget(transTrain, 'C1', 'isFraud')
 
 transTrain.loc[transTrain.C2.isin(transTrain.C2.value_counts()[transTrain.C2.value_counts() <= 350 ].index), 'C2'] = "Others"
+transTest.loc[transTest.C2.isin(transTest.C2.value_counts()[transTest.C2.value_counts() <= 350 ].index), 'C2'] = "Others"
 plt.figure(figsize = (10,10))
 gc2 = createCountplotWithTarget(transTrain, 'C2', 'isFraud')
 
 transTrain.loc[transTrain.C3.isin(transTrain.C3.value_counts()[transTrain.C3.value_counts() <= 2000 ].index), 'C3'] = "Others"    
+transTest.loc[transTest.C3.isin(transTest.C3.value_counts()[transTest.C3.value_counts() <= 2000 ].index), 'C3'] = "Others"    
 gc3 = createCountplotWithTarget(transTrain, 'C3', 'isFraud')
 
 transTrain.loc[transTrain.C4.isin(transTrain.C4.value_counts()[transTrain.C4.value_counts() <= 350 ].index), 'C4'] = "Others"    
+transTest.loc[transTest.C4.isin(transTest.C4.value_counts()[transTest.C4.value_counts() <= 350 ].index), 'C4'] = "Others"    
 gc4 = createCountplotWithTarget(transTrain, 'C4', 'isFraud')
 
 transTrain.loc[transTrain.C5.isin(transTrain.C5.value_counts()[transTrain.C5.value_counts() <= 400 ].index), 'C5'] = "Others"
+transTest.loc[transTest.C5.isin(transTest.C5.value_counts()[transTest.C5.value_counts() <= 400 ].index), 'C5'] = "Others"
 plt.figure(figsize = (10, 8))
 gc5 = createCountplotWithTarget(transTrain, 'C5', 'isFraud')
 
 transTrain.loc[transTrain.C6.isin(transTrain.C6.value_counts()[transTrain.C6.value_counts() <= 700 ].index), 'C6'] = "Others"
+transTest.loc[transTest.C6.isin(transTest.C6.value_counts()[transTest.C6.value_counts() <= 700 ].index), 'C6'] = "Others"
 gc6 = createCountplotWithTarget(transTrain, 'C6', 'isFraud')
 
 transTrain.loc[transTrain.C7.isin(transTrain.C7.value_counts()[transTrain.C7.value_counts() <= 1000 ].index), 'C7'] = "Others"
+transTest.loc[transTest.C7.isin(transTest.C7.value_counts()[transTest.C7.value_counts() <= 1000 ].index), 'C7'] = "Others"
 gc7 = createCountplotWithTarget(transTrain, 'C7', 'isFraud')
 
 transTrain.loc[transTrain.C8.isin(transTrain.C8.value_counts()[transTrain.C8.value_counts() <= 100 ].index), 'C8'] = "Others"
+transTest.loc[transTest.C8.isin(transTest.C8.value_counts()[transTest.C8.value_counts() <= 100 ].index), 'C8'] = "Others"
 plt.figure(figsize = (8,18))
 gc8 = createCountplotWithTarget(transTrain, 'C8', 'isFraud')
 
 transTrain.loc[transTrain.C9.isin(transTrain.C9.value_counts()[transTrain.C9.value_counts() <= 500 ].index), 'C9'] = "Others"
+transTest.loc[transTest.C9.isin(transTest.C9.value_counts()[transTest.C9.value_counts() <= 500 ].index), 'C9'] = "Others"
 plt.figure(figsize = (8,18))
 gc9 = createCountplotWithTarget(transTrain, 'C9', 'isFraud')
 
 transTrain.loc[transTrain.C10.isin(transTrain.C10.value_counts()[transTrain.C10.value_counts() <= 500 ].index), 'C10'] = "Others"
+transTest.loc[transTest.C10.isin(transTest.C10.value_counts()[transTest.C10.value_counts() <= 500 ].index), 'C10'] = "Others"
 #plt.figure(figsize = (8,18))
 gc10 = createCountplotWithTarget(transTrain, 'C10', 'isFraud')
 
 transTrain.loc[transTrain.C11.isin(transTrain.C11.value_counts()[transTrain.C11.value_counts() <= 500 ].index), 'C11'] = "Others"
+transTest.loc[transTest.C11.isin(transTest.C11.value_counts()[transTest.C11.value_counts() <= 500 ].index), 'C11'] = "Others"
 gc11 = createCountplotWithTarget(transTrain, 'C11', 'isFraud')
 
 transTrain.loc[transTrain.C12.isin(transTrain.C12.value_counts()[transTrain.C12.value_counts() <= 600 ].index), 'C12'] = "Others"
+transTest.loc[transTest.C12.isin(transTest.C12.value_counts()[transTest.C12.value_counts() <= 600 ].index), 'C12'] = "Others"
 gc12 = createCountplotWithTarget(transTrain, 'C12', 'isFraud')
 
 transTrain.loc[transTrain.C13.isin(transTrain.C13.value_counts()[transTrain.C13.value_counts() <= 2500 ].index), 'C13'] = "Others"
+transTest.loc[transTest.C13.isin(transTest.C13.value_counts()[transTest.C13.value_counts() <= 2500 ].index), 'C13'] = "Others"
 gc13 = createCountplotWithTarget(transTrain, 'C13', 'isFraud')
 
 transTrain.loc[transTrain.C14.isin(transTrain.C14.value_counts()[transTrain.C14.value_counts() <= 350 ].index), 'C14'] = "Others"
+transTest.loc[transTest.C14.isin(transTest.C14.value_counts()[transTest.C14.value_counts() <= 350 ].index), 'C14'] = "Others"
 gc14 = createCountplotWithTarget(transTrain, 'C14', 'isFraud')
 
 START_DATE = '2017-12-01'
 startdate = datetime.datetime.strptime(START_DATE, "%Y-%m-%d")
 transTrain['Date'] = transTrain['TransactionDT'].apply(lambda x: (startdate + datetime.timedelta(seconds = x)))
+transTest['Date'] = transTest['TransactionDT'].apply(lambda x: (startdate + datetime.timedelta(seconds = x)))
+
 
 transTrain['Weekdays'] = transTrain['Date'].dt.dayofweek
 transTrain['Hours'] = transTrain['Date'].dt.hour
 transTrain['Days'] = transTrain['Date'].dt.day
 
+transTest['Weekdays'] = transTest['Date'].dt.dayofweek
+transTest['Hours'] = transTest['Date'].dt.hour
+transTest['Days'] = transTest['Date'].dt.day
+
 gdays = createCountplotWithTarget(transTrain, 'Days', 'isFraud')
 gweekdays = createCountplotWithTarget(transTrain, 'Weekdays', 'isFraud')
 ghours = createCountplotWithTarget(transTrain, 'Hours', 'isFraud')
 
-numId, catId = [], []
-dtypeSeparation(idTrain, numId, catId)
-resumeTable(idTrain[catId])
-resumeTable(idTrain[numId])
+numIdTrain, catIdTrain = [], []
+numIdTest, catIdTest = [], []
+dtypeSeparation(idTrain, numIdTrain, catIdTrain)
+dtypeSeparation(idTest, numIdTest, catIdTest)
+#resumeTable(idTrain[catId])
+#resumeTable(idTrain[numId])
 for col in idTrain.columns:
     replaceMissingValues(idTrain, col)
+
+for col in idTest.columns:
+    replaceMissingValues(idTest, col)
+    
+df_train = transTrain.merge(idTrain, how = 'left', left_index=True, right_index=True, on = 'TransactionID')
+df_test = transTest.merge(idTest, how = 'left', left_index=True, right_index=True, on = 'TransactionID')    
+df_train = reduce_mem_usage(df_train)
+df_test = reduce_mem_usage(df_test)
     
 numTrain, catTrain = [], []
+numTest, catTest = [], []
 dtypeSeparation(df_train, numTrain, catTrain)
-resumeTable(df_train[catTrain])
+dtypeSeparation(df_test, numTest, catTest)
+#resumeTable(df_train[catTrain])
 
 for col in df_train.columns:
     replaceMissingValues(df_train, col)
+
+for col in df_test.columns:
+    replaceMissingValues(df_test, col)
 
 for col in catTrain:
     if 'id_' in col:
@@ -575,6 +643,11 @@ df_train.loc[df_train['id_30'].str.contains('iOS'), 'id_30'] = 'iOS'
 df_train.loc[df_train['id_30'].str.contains('Mac OS'), 'id_30'] = 'Mac'        
 df_train.loc[df_train['id_30'].str.contains('Android'), 'id_30'] = 'Android'
 
+df_test.loc[df_test['id_30'].str.contains('Windows'), 'id_30'] = 'Windows'
+df_test.loc[df_test['id_30'].str.contains('iOS'), 'id_30'] = 'iOS'        
+df_test.loc[df_test['id_30'].str.contains('Mac OS'), 'id_30'] = 'Mac'        
+df_test.loc[df_test['id_30'].str.contains('Android'), 'id_30'] = 'Android'
+
 plt.figure()
 createCountplotWithTarget(df_train, 'id_30', 'isFraud')
 
@@ -586,6 +659,16 @@ df_train.loc[df_train['id_31'].str.contains('edge'), 'id_31'] = 'Edge'
 df_train.loc[df_train['id_31'].str.contains('ie'), 'id_31'] = 'IE'
 df_train.loc[df_train['id_31'].str.contains('opera'), 'id_31'] = 'Opera'
 df_train.loc[df_train.id_31.isin(df_train.id_31.value_counts()[df_train.id_31.value_counts() < 200].index), 'id_31'] = "Others"
+
+df_test.loc[df_test['id_31'].str.contains('chrome'), 'id_31'] = 'Chrome'
+df_test.loc[df_test['id_31'].str.contains('firefox'), 'id_31'] = 'Firefox'
+df_test.loc[df_test['id_31'].str.contains('samsung'), 'id_31'] = 'Samsung'
+df_test.loc[df_test['id_31'].str.contains('safari'), 'id_31'] = 'Safari'
+df_test.loc[df_test['id_31'].str.contains('edge'), 'id_31'] = 'Edge'
+df_test.loc[df_test['id_31'].str.contains('ie'), 'id_31'] = 'IE'
+df_test.loc[df_test['id_31'].str.contains('opera'), 'id_31'] = 'Opera'
+df_test.loc[df_test.id_31.isin(df_test.id_31.value_counts()[df_test.id_31.value_counts() < 200].index), 'id_31'] = "Others"
+
 createCountplotWithTarget(df_train, 'id_31', 'isFraud')
 
 for col in numTrain:
@@ -594,5 +677,28 @@ for col in numTrain:
         distributionByTarget(df_train, col, 'isFraud')
         plt.show()
 
+#Modelling
+        
+df_train_y = df_train['isFraud']
+df_train_temp = df_train
 
+
+for f in df_train.drop('isFraud', axis=1).columns:
+    if df_train[f].dtype=='object' or df_test[f].dtype=='object': 
+        lbl = preprocessing.LabelEncoder()
+        lbl.fit(list(df_train[f].unique()))
+        try:
+            df_train[f+'encoded'] = lbl.transform(list(df_train[f].values))
+            df_test[f+'encoded'] = lbl.transform(list(df_test[f].values)) 
+        except: 
+            print('This variable will go to one hot encoder_'+ str(f))
+            dummies = pd.get_dummies(df_train[f],prefix=f)
+            df_train = df_train.join(dummies) 
+            dummies = pd.get_dummies(df_test[f],prefix=f)
+            df_test = df_test.join(dummies)             
+            
+from sklearn.ensemble import RandomForestClassifier
+
+RFC = RandomForestClassifier(n_estimators=100)
+scores = cross_val_score(RFC, df_train[cat_col_names], df_train_y, cv = 10, scoring='precision')
 
