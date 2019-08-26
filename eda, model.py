@@ -10,13 +10,17 @@ from sklearn import linear_model
 from xgboost import XGBClassifier
 import xgboost as xgb
 from sklearn.model_selection import KFold,TimeSeriesSplit
-from sklearn.metrics import roc_auc_score
 from sklearn.metrics import make_scorer
 from sklearn import preprocessing
 from sklearn.metrics import confusion_matrix, roc_auc_score, classification_report
 from sklearn.model_selection import StratifiedKFold, cross_val_score, KFold
-pd.set_option('display.expand_frame_repr', False)
 from sklearn.preprocessing import LabelEncoder
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.metrics import roc_auc_score, roc_curve, auc
+from sklearn.tree import DecisionTreeRegressor
+pd.set_option('display.expand_frame_repr', False)
+
+
 
 
 
@@ -180,12 +184,68 @@ def replaceEmails(df, col):
     df.loc[df[col].isin(['hotmail.com','outlook.com','msn.com', 'live.com.mx', 'hotmail.es','hotmail.co.uk', 'hotmail.de', 'outlook.es', 'live.com', 'live.fr', 'hotmail.fr']), col] = 'Microsoft'
     df.loc[df[col].isin(df[col].value_counts()[df[col].value_counts() <= 500 ].index), col] = "Others"    
 
+def compute_roc_auc(index, X, y):
+    y_predict = clf.predict_proba(X.iloc[index])[:,1]
+    fpr, tpr, thresholds = roc_curve(y.iloc[index], y_predict)
+    auc_score = auc(fpr, tpr)
+    return fpr, tpr, auc_score
+
+def plot_roc_curve(fprs, tprs):
+    """Plot the Receiver Operating Characteristic from a list
+    of true positive rates and false positive rates."""
+    
+    # Initialize useful lists + the plot axes.
+    tprs_interp = []
+    aucs = []
+    mean_fpr = np.linspace(0, 1, 100)
+    f, ax = plt.subplots(figsize=(14,10))
+    
+    # Plot ROC for each K-Fold + compute AUC scores.
+    for i, (fpr, tpr) in enumerate(zip(fprs, tprs)):
+        tprs_interp.append(np.interp(mean_fpr, fpr, tpr))
+        tprs_interp[-1][0] = 0.0
+        roc_auc = auc(fpr, tpr)
+        aucs.append(roc_auc)
+        ax.plot(fpr, tpr, lw=1, alpha=0.3,
+                 label='ROC fold %d (AUC = %0.2f)' % (i, roc_auc))
+        
+    # Plot the luck line.
+    plt.plot([0, 1], [0, 1], linestyle='--', lw=2, color='r',
+             label='Luck', alpha=.8)
+    
+    # Plot the mean ROC.
+    mean_tpr = np.mean(tprs_interp, axis=0)
+    mean_tpr[-1] = 1.0
+    mean_auc = auc(mean_fpr, mean_tpr)
+    std_auc = np.std(aucs)
+    ax.plot(mean_fpr, mean_tpr, color='b',
+             label=r'Mean ROC (AUC = %0.2f $\pm$ %0.2f)' % (mean_auc, std_auc),
+             lw=2, alpha=.8)
+    
+    # Plot the standard deviation around the mean ROC.
+    std_tpr = np.std(tprs_interp, axis=0)
+    tprs_upper = np.minimum(mean_tpr + std_tpr, 1)
+    tprs_lower = np.maximum(mean_tpr - std_tpr, 0)
+    ax.fill_between(mean_fpr, tprs_lower, tprs_upper, color='grey', alpha=.2,
+                     label=r'$\pm$ 1 std. dev.')
+    
+    # Fine tune and show the plot.
+    ax.set_xlim([-0.05, 1.05])
+    ax.set_ylim([-0.05, 1.05])
+    ax.set_xlabel('False Positive Rate')
+    ax.set_ylabel('True Positive Rate')
+    ax.set_title('Receiver operating characteristic')
+    ax.legend(loc="lower right")
+    plt.show()
+    return (f, ax)
 
 
-df_train = transTrain.merge(idTrain, how='left', left_index=True, right_index=True, on = 'TransactionID')
-df_test = transTest.merge(idTest, how='left', left_index=True, right_index=True, on='TransactionID')
-df_train = reduce_mem_usage(df_train)
-df_test = reduce_mem_usage(df_test)
+# =============================================================================
+# df_train = transTrain.merge(idTrain, how='left', left_index=True, right_index=True, on = 'TransactionID')
+# df_test = transTest.merge(idTest, how='left', left_index=True, right_index=True, on='TransactionID')
+# df_train = reduce_mem_usage(df_train)
+# df_test = reduce_mem_usage(df_test)
+# =============================================================================
 
 transTrain = reduce_mem_usage(transTrain)
 idTrain = reduce_mem_usage(idTrain)
@@ -514,6 +574,8 @@ gp = createCountplotWithTarget(transTrain, 'P_emaildomain', 'isFraud')
 
 resumeTable(transTrain[['R_emaildomain']])
 replaceMissingValues(transTrain,'R_emaildomain')
+replaceMissingValues(transTest,'R_emaildomain')
+
 
 replaceEmails(transTrain, 'R_emaildomain')
 replaceEmails(transTest, 'R_emaildomain')
@@ -523,7 +585,7 @@ gp = createCountplotWithTarget(transTrain, 'R_emaildomain', 'isFraud')
 resumeTable(transTrain[['C1', 'C2', 'C3', 'C4', 'C5', 'C6', 'C7', 'C8', 'C9', 'C10', 'C11', 'C12', 'C13', 'C14']])
 
 transTrain.loc[transTrain.C1.isin(transTrain.C1.value_counts()[transTrain.C1.value_counts() <= 400 ].index), 'C1'] = "Others"
-transTest.loc[transTest.C1.isin(transTrain.C1.value_counts()[transTrain.C1.value_counts() <= 400 ].index), 'C1'] = "Others"
+transTest.loc[transTest.C1.isin(transTest.C1.value_counts()[transTest.C1.value_counts() <= 400 ].index), 'C1'] = "Others"
 
 plt.figure(figsize = (15,8))
 gc1 = createCountplotWithTarget(transTrain, 'C1', 'isFraud')
@@ -677,28 +739,118 @@ for col in numTrain:
         distributionByTarget(df_train, col, 'isFraud')
         plt.show()
 
+resumeTrain = resumeTable(df_train)    
+trainMissing = list(resumeTrain [resumeTrain ['Missing Percentage'] > 0]['Name'])
+
+
+resumeTest = resumeTable(df_test)
+testMissing = list(resumeTest[resumeTest['Missing Percentage'] > 0]['Name'])
+
 #Modelling
         
-df_train_y = df_train['isFraud']
 df_train_temp = df_train
+df_test_temp = df_test
 
 
-for f in df_train.drop('isFraud', axis=1).columns:
-    if df_train[f].dtype=='object' or df_test[f].dtype=='object': 
-        lbl = preprocessing.LabelEncoder()
-        lbl.fit(list(df_train[f].unique()))
-        try:
-            df_train[f+'encoded'] = lbl.transform(list(df_train[f].values))
-            df_test[f+'encoded'] = lbl.transform(list(df_test[f].values)) 
-        except: 
-            print('This variable will go to one hot encoder_'+ str(f))
-            dummies = pd.get_dummies(df_train[f],prefix=f)
-            df_train = df_train.join(dummies) 
-            dummies = pd.get_dummies(df_test[f],prefix=f)
-            df_test = df_test.join(dummies)             
+df_train.drop('id_33', axis = 1, inplace = True)
+df_test.drop('id_33', axis = 1, inplace = True)
+
+# =============================================================================
+# for f in df_train.drop('isFraud', axis=1).columns:
+#     if df_train[f].dtype=='O' or df_test[f].dtype=='O' or df_train[f].dtype=='object' or df_test[f].dtype=='object': 
+#         lbl = preprocessing.LabelEncoder()
+#         lbl.fit(list(df_train[f].unique()))
+#         lbl.fit(list(df_test[f].unique()))
+#         
+#         try:
+#             df_train[f] = lbl.transform(list(df_train[f].values))
+#             df_test[f] = lbl.transform(list(df_test[f].values)) 
+#         except: 
+#             print('This variable will go to one hot encoder_'+ str(f))
+#             print(df_train.shape)
+#             dummies = pd.get_dummies(df_train[f],prefix=f)
+#             df_train = df_train.join(dummies)
+#             df_train.drop(f, axis = 1, inplace = True)
+#             dummies = pd.get_dummies(df_test[f],prefix=f)
+#             df_test = df_test.join(dummies)  
+#             df_test.drop(f, axis = 1, inplace = True)
+# =============================================================================
             
-from sklearn.ensemble import RandomForestClassifier
+for f in df_train.drop('isFraud', axis=1).columns:
+    if df_train[f].dtype=='O' or df_test[f].dtype=='O' or df_train[f].dtype=='object' or df_test[f].dtype=='object': 
+        lbl = preprocessing.LabelEncoder()
+        lbl.fit(list(df_train[f].values) + list(df_test[f].values))
+        df_train[f] = lbl.transform(list(df_train[f].values))
+        df_test[f] = lbl.transform(list(df_test[f].values))             
 
-RFC = RandomForestClassifier(n_estimators=100)
-scores = cross_val_score(RFC, df_train[cat_col_names], df_train_y, cv = 10, scoring='precision')
+df_train = reduce_mem_usage(df_train)
+df_test = reduce_mem_usage(df_test)
+            
+clf = RandomForestClassifier(
+    n_estimators=50,
+    criterion='gini',
+    max_depth=5,
+    min_samples_split=2,
+    min_samples_leaf=1,
+    min_weight_fraction_leaf=0.0,
+    max_features='auto',
+    max_leaf_nodes=None,
+    min_impurity_decrease=0.0,
+    min_impurity_split=None,
+    bootstrap=True,
+    oob_score=False,
+    n_jobs=-1,
+    random_state=0,
+    verbose=0,
+    warm_start=False,
+    class_weight='balanced'
+)
 
+
+best_XGB = xgb.XGBClassifier(objective="binary:logistic", random_state=42)
+scores = []
+cv = KFold(n_splits=10, random_state=42, shuffle=False)
+
+
+
+results = pd.DataFrame(columns=['training_score', 'test_score'])
+fprs, tprs, scores = [], [], []
+
+df_train.drop('Date', axis = 1, inplace = True)
+df_test.drop('Date', axis = 1, inplace = True)
+
+for (train, test), i in zip(cv.split(df_train.drop('isFraud',axis = 1), df_train['isFraud']), range(5)):
+    clf.fit(df_train.drop('isFraud',axis = 1).iloc[train], df_train['isFraud'].iloc[train])
+    _, _, auc_score_train = compute_roc_auc(train, df_train.drop('isFraud',axis = 1), df_train['isFraud'])
+    fpr, tpr, auc_score = compute_roc_auc(test, df_train.drop('isFraud',axis = 1), df_train['isFraud'])
+    scores.append((auc_score_train, auc_score))
+    fprs.append(fpr)
+    tprs.append(tpr)
+    print('Zavrsi')
+
+
+
+plot_roc_curve(fprs, tprs);
+pd.DataFrame(scores, columns=['AUC Train', 'AUC Test'])
+
+
+
+# =============================================================================
+# for train_index, test_index in cv.split(df_train):
+#     print("Train Index: ", train_index, "\n")
+#     print("Test Index: ", test_index)    
+#     df_train = df_train.drop('isFraud', axis = 1)
+#     X_train, X_test, y_train, y_test = df_train.iloc[train_index], df_train.iloc[test_index], df_train.iloc[train_index], df_train.iloc[test_index]
+#     print('Pero')
+#     best_XGB.fit(X_train, y_train)
+#     scores.append(best_XGB.score(X_test, y_test))
+# 
+# =============================================================================
+
+
+regressor = DecisionTreeRegressor(random_state=0)
+for train_index, test_index in cv.split(df_train):
+    X_train, X_test, y_train, y_test = df_train.iloc[train_index], df_train.iloc[test_index], df_train.iloc[train_index], df_train.iloc[test_index]
+    regressor.fit(X_train, y_train)
+    scores.append(regressor.score(X_test, y_test))
+    
