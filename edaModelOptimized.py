@@ -20,22 +20,16 @@ from sklearn.metrics import roc_auc_score, roc_curve, auc
 from sklearn.tree import DecisionTreeRegressor
 pd.set_option('display.expand_frame_repr', False)
 
-
-
-
-
-
 transTest = pd.read_csv('test_transaction.csv')
 transTrain = pd.read_csv('train_transaction.csv')
 idTest = pd.read_csv('test_identity.csv')
 idTrain = pd.read_csv('train_identity.csv')
 
+transTrain = reduce_mem_usage(transTrain)
+transTest = reduce_mem_usage(transTest)
+idTrain = reduce_mem_usage(idTrain)
+idTest = reduce_mem_usage(idTest)
 
-'''
-Funkcija za rezime na odreden dataset. 
-Funkcijata vraka dataframe vo koj se sodrzat informacii za varijablite na datasetot koj e vnesen kako argument
-
-'''
 
 def resumeTable(df):
     print('Input dataframe shape is {}'.format(df.shape))
@@ -239,59 +233,27 @@ def plot_roc_curve(fprs, tprs):
     plt.show()
     return (f, ax)
 
-
-# =============================================================================
-# df_train = transTrain.merge(idTrain, how='left', left_index=True, right_index=True, on = 'TransactionID')
-# df_test = transTest.merge(idTest, how='left', left_index=True, right_index=True, on='TransactionID')
-# df_train = reduce_mem_usage(df_train)
-# df_test = reduce_mem_usage(df_test)
-# =============================================================================
-
-transTrain = reduce_mem_usage(transTrain)
-idTrain = reduce_mem_usage(idTrain)
-
-
 resume = resumeTable(transTrain)
-print("transTrain has {} rows and {} columns".format(transTrain.shape[0], transTrain.shape[1]))
-
 transTrain['isFraud'] = transTrain['isFraud'].astype('object')
 
+for col in transTrain.columns:
+    replaceMissingValues(transTrain, col)
+    
+for col in transTest.columns:
+    replaceMissingValues(transTest, col)
+    
+numTransTrain, catTransTrain = [], []
+dtypeSeparation(transTrain, numTransTrain, catTransTrain)
 
-'''
-Funckija za podelba na varijablite od odreden dataset na numericki i kategoricki,
-odnosno stavanje na nivnite iminja vo odredena lista koja sto ke se iskoristi ponatamu(se misli na listata)
-'''
-numTrans, catTrans = [], []
-dtypeSeparation(transTrain, numTrans, catTrans)
+numTransTest, catTransTest = [], []
+dtypeSeparation(transTrain, numTransTest, catTransTest)
 
-'''
-Kreiranje na dataframe koj sto se sodrzi samo so kategorickite varijabli
-'''
+transTrainCategorical = pd.DataFrame(transTrain[catTransTrain], columns=catTransTrain)
+transTrainNumerical = pd.DataFrame(transTrain[numTransTrain], columns=numTransTrain)
 
-transTrainCategorical = pd.DataFrame(transTrain[catTrans], columns=catTrans)
+transTestCategorical = pd.DataFrame(transTrain[catTransTrain], columns=catTransTest)
+transTestNumerical = pd.DataFrame(transTrain[numTransTest], columns=numTransTest)
 
-'''
-Kreiranje na dataframe koj sto se sodrzi samo so numericki varijabli
-'''
-
-transTrainNumerical = pd.DataFrame(transTrain[numTrans], columns=numTrans)
-
-
-
-# =============================================================================
-# transTrain.drop(columns= 'P_emaildomain', axis = 1, inplace = True)
-# transTrainCategorical.drop(columns= 'P_emaildomain', axis = 1, inplace = True)
-# 
-# transTrain.drop(columns= 'TransactionID', axis = 1, inplace = True)
-# transTrainNumerical.drop(columns= 'TransactionID', axis = 1, inplace = True)
-# =============================================================================
-
-
-
-'''
-Kreiranje na dictionaries vo koj se kako key e zacuvana varijablata, a kako value korelacijata koja taa
-varijabla ja ima so target varijablata(isFraud)    
-'''
 
 correlationCategoricalTarget = dict()
 for col in transTrainCategorical.columns:
@@ -315,36 +277,6 @@ correlationNumericalTarget = pd.DataFrame.from_dict(correlationNumericalTarget, 
 correlationNumericalTarget = correlationNumericalTarget.reset_index()
 correlationNumericalTarget.rename(columns = {'index': 'Variable', 0: 'CorrelationValue'}, inplace = True)
 
-for col in transTrain.columns:
-    replaceMissingValues(transTrain, col)
-# =============================================================================
-#
-# highlyCorrelatedCategorical = dict()
-# for (key, value) in correlationCategoricalTarget.items():
-#    if value > 0.1:
-#        highlyCorrelatedCategorical[key] = value
-#  
-# print('Highly Correlated Categorical variables: ')
-# print(highlyCorrelatedCategorical)
-#         
-# highlyCorrelatedNumerical = dict()
-# for (key, value) in correlationNumerical.items():
-#   if value > 0.5:
-#      highlyCorrelatedNumerical[key] = value
-# 
-# print('Highly Correlated Numerical variables: ')
-# print(highlyCorrelatedNumerical) 
-#    
-# =============================================================================
-
-# =============================================================================
-# noMissingValues = list(resume[resume['Missing'] == 0]['Name'])
-# lowMissingValues = list(resume[resume['Missing Percentage'] <= 52]['Name'])
-# highMissingValues = list(resume[resume['Missing Percentage'] > 52]['Name'])
-# =============================================================================
-
-# transTrainNumerical = transTrainNumerical.dropna()
-
 numericalCorr = transTrainNumerical.corr().abs()
 np.fill_diagonal(numericalCorr.values, -2)
 s = numericalCorr.unstack()
@@ -357,10 +289,6 @@ numericalCorrelatedPairs.drop(indexNames , inplace=True)
 numericalCorrelatedPairs = numericalCorrelatedPairs.reset_index()
 numericalCorrelatedPairs.drop(0, axis = 0, inplace = True)
 numericalCorrelatedPairs.iloc[1::2]
-#----------------------------------------------------------------------------------------
-'''
-Distribucija na target varijabla.
-'''
 
 transTrain['TransactionAmt'] = transTrain['TransactionAmt'].astype(float)
 transTest['TransactionAmt'] = transTrain['TransactionAmt'].astype(float)
@@ -377,29 +305,12 @@ for p in ax.patches:
     ha="center") 
 plt.show()
 
-
-'''
-Presmetka na kvantilite na TransactionAmt varijablata od trening mnozestvoto
-'''
-
 print('TransactionAmt quantiles:')
 print(transTrain['TransactionAmt'].quantile([0,0.25, 0.5, 0.75, 1]))
-
-
-'''
-Distribucija na TransactionAmt varijablata. Prikazanata distribucija i na logaritmirani vrednosti
-'''
 
 plt.figure(figsize = (8,10))    
 g = sns.distplot(transTrain[transTrain['TransactionAmt'] <= 1000]['TransactionAmt'])
 g.set_xlabel('TransactionAmt', fontsize = 15)
-plt.show()
-
-plt.figure()
-g = sns.distplot(np.log(transTrain[transTrain['isFraud'] == 1]['TransactionAmt']), label = 'Fraud')
-g = sns.distplot(np.log(transTrain[transTrain['isFraud'] == 0]['TransactionAmt']), label = 'No Fraud')
-g.set(xlim = (1))
-g.legend()
 plt.show()
 
 plt.figure()
@@ -409,131 +320,29 @@ g.set(xlim = (0.001))
 g.legend()
 plt.show()
 
-'''
-Povikana funckcija za naoganje outliers
-'''
+
+plt.figure()
+g = sns.distplot(np.log(transTrain[transTrain['isFraud'] == 1]['TransactionAmt']), label = 'Fraud')
+g = sns.distplot(np.log(transTrain[transTrain['isFraud'] == 0]['TransactionAmt']), label = 'No Fraud')
+g.set(xlim = (1))
+g.legend()
+plt.show()
+
 
 CalcOutliers(transTrain.TransactionAmt)
 TransactionAmtMean = transTrain['TransactionAmt'].mean()
 TransactionAmtMeanFraud = transTrain[transTrain['isFraud'] == 1]['TransactionAmt'].mean()
 TransactionAmtMeanNoFraud = transTrain[transTrain['isFraud'] == 0]['TransactionAmt'].mean()
 
-
-
-tmp1 = createCrosstab(transTrain['ProductCD'], transTrain['isFraud'])
-
-plt.figure()
-g = sns.countplot(x = 'ProductCD', data = transTrain)
-g.set_xlabel('ProductCD', fontsize = 13)
-g.set_ylabel('ProductCD Counts', fontsize=13)
-g.set_title('ProductCD value distribution', fontsize = 13)
-for p in g.patches:
-    height = p.get_height()
-    g.text(p.get_x()+p.get_width()/2.,
-    height + 3,
-    '{:1.2f}%'.format(height/total*100),
-    ha="center", fontsize=13)
-plt.show()
-
 createCountplotWithTarget(transTrain, 'ProductCD', 'isFraud')
-
-
-g1 = sns.countplot(x = 'ProductCD', hue='isFraud', data = transTrain)
-g1.set_xlabel('isFraud by ProductCD', fontsize = 13)
-g1.set_ylabel('isFraud by ProductCD Counts', fontsize=13)
-g1.set_title('isFraud by ProductCD value distribution', fontsize = 13)
-plt.legend(title='Fraud', loc='best', labels=['No', 'Yes'])
-gt = g1.twinx()
-gt = sns.pointplot(x = 'ProductCD', y = 'Fraud', data = tmp1, order=['W', 'H', 'C', 'S', 'R'], color= 'red')
-plt.show()
-
-
-
 
 resumeTable(transTrain[['card1', 'card2', 'card3', 'card4', 'card5', 'card6']])
 
-# =============================================================================
-# 
-# g = sns.countplot(x = 'card4', data = transTrain)
-# g.set_xlabel('Card 4', fontsize = 14)
-# g.set_ylabel('Card 4 count', fontsize = 14)
-# g.set_title('Card 4 count distribution', fontsize = 14)
-# for p in g.patches:
-# height = p.get_height()
-# g.text(p.get_x()+p.get_width()/2.,
-# height + 3,
-# '{:1.2f}%'.format(height/total*100),
-# ha="center", fontsize=14)
-# plt.show()
-# 
-# =============================================================================
-# =============================================================================
-# replaceMissingValues(transTrain,'card4')
-# replaceMissingValues(transTest,'card4')
-# =============================================================================
 gcard4 = createCountplotWithTarget(transTrain, 'card4',  'isFraud')
-# =============================================================================
-#     g1 = sns.countplot(x = 'card4', hue='isFraud', data = transTrain)
-#     g1.set_xlabel('Card 4', fontsize = 14)
-#     g1.set_ylabel('Card 4 count', fontsize = 14)
-#     g1.set_title('Card 4 count distribution', fontsize = 14)
-#     gt = g1.twinx()
-#     gt = sns.pointplot(x = 'card4', y = 'Fraud' , data = tmp2, order=['discover', 'mastercard', 'visa', 'american express'], color = 'black')
-#     plt.show()
-# =============================================================================
-
-
-replaceMissingValues(transTrain,'card6') 
-replaceMissingValues(transTest,'card6')   
 gcard6 = createCountplotWithTarget(transTrain, 'card6', 'isFraud')
-# =============================================================================
-#     tmp3 = createCrosstab(transTrain['card6'], transTrain['isFraud'])
-#     
-#     plt.figure(figsize=(8,8))
-#     g = sns.countplot(x = 'card6', data = transTrain)
-#     g.set_title('Card 6 Countplot', fontsize = 14)
-#     g.set_xlabel('Card 6 Values', fontsize = 14)
-#     g.set_ylabel('Card 6 Count', fontsize = 14)
-#     for p in g.patches:
-#         height = p.get_height()
-#         g.text(p.get_x()+p.get_width()/2.,
-#                 height + 3,
-#                 '{:1.2f}%'.format(height/total*100),
-#                 ha="center", fontsize=14)
-#     gt = g.twinx()
-#     gt = sns.pointplot(x = 'card6', y = 'Fraud',  data = tmp3, order=['credit', 'debit', 'debit or credit', 'charge card'], color = 'black')
-#     plt.show()
-# =============================================================================
-
-replaceMissingValues(transTrain,'card1')
-replaceMissingValues(transTest,'card1')
 gcard1 = distributionByTarget(transTrain, 'card1', 'isFraud')    
-# =============================================================================
-#     plt.figure(figsize=(8,22))
-#     plt.subplot(411)
-#     g = sns.distplot(transTrain[transTrain['isFraud'] == 1]['card1'], label='Fraud')
-#     g = sns.distplot(transTrain[transTrain['isFraud'] == 0]['card1'], label='NoFraud')
-#     g.legend()
-#     g.set_title("Card 1 Values Distribution by Target", fontsize=20)
-#     g.set_xlabel("Card 1 Values", fontsize=18)
-#     g.set_ylabel("Probability", fontsize=18)
-#     plt.show()
-#     plt.figure(figsize = (8,8))
-# =============================================================================
-
-replaceMissingValues(transTrain,'card2')
-replaceMissingValues(transTest,'card2')
 gcard2 = distributionByTarget(transTrain, 'card2', 'isFraud')    
-# =============================================================================
-#     plt.figure(figsize=(8,22))
-#     plt.subplot(412)
-#     g = sns.distplot(transTrain[transTrain['isFraud'] == 0]['card2'].dropna(), label = 'No Fraud')
-#     g = sns.distplot(transTrain[transTrain['isFraud'] == 1]['card2'].dropna(), label = 'Fraud')
-#     g.legend()
-#     
-# =============================================================================
-replaceMissingValues(transTrain,'card3')
-replaceMissingValues(transTest,'card3')
+
 plt.figure(figsize=(8,22))
 plt.subplot(413)
 g = sns.distplot(transTrain[transTrain['isFraud'] == 0]['card3'], label = 'No Fraud')
@@ -541,8 +350,6 @@ g = sns.distplot(transTrain[transTrain['isFraud'] == 1]['card3'], label = 'Fraud
 g.legend()
 g.set(xlim = (140, 200))
 
-replaceMissingValues(transTrain,'card5')    
-replaceMissingValues(transTest,'card5')    
 plt.figure(figsize=(8,22))
 plt.subplot(414)
 g = sns.distplot(transTrain[transTrain['isFraud'] == 0]['card5'], label = 'No Fraud')
@@ -551,28 +358,18 @@ g.legend()
 g.set(xlim = (90, 240))
 
 resumeTable(transTrain[['M1', 'M2', 'M3', 'M4', 'M5', 'M6', 'M7', 'M8', 'M9']])
-replaceMissingValues(transTrain,'M')
-replaceMissingValues(transTest,'M')
-
-
 
 for col in transTrain.columns:
     if 'M' in col:
         plt.figure()
         createCountplotWithTarget(transTrain, col, 'isFraud')
         plt.show()
-   
-resumeTable(transTrain[['addr1', 'addr2']])
-replaceMissingValues(transTrain,'addr')
-replaceMissingValues(transTest,'addr')
 
+resumeTable(transTrain[['addr1', 'addr2']])        
 ga1 = distributionByTarget(transTrain, 'addr1', 'isFraud')
 ga2 = distributionByTarget(transTrain, 'addr2', 'isFraud')
 
 resumeTable(transTrain[['P_emaildomain']])
-replaceMissingValues(transTrain,'P_emaildomain')
-replaceMissingValues(transTest,'P_emaildomain')
-
 replaceEmails(transTrain, 'P_emaildomain')
 replaceEmails(transTest, 'P_emaildomain')
 
@@ -582,7 +379,6 @@ gp = createCountplotWithTarget(transTrain, 'P_emaildomain', 'isFraud')
 resumeTable(transTrain[['R_emaildomain']])
 replaceMissingValues(transTrain,'R_emaildomain')
 replaceMissingValues(transTest,'R_emaildomain')
-
 
 replaceEmails(transTrain, 'R_emaildomain')
 replaceEmails(transTest, 'R_emaildomain')
@@ -676,14 +472,7 @@ numIdTrain, catIdTrain = [], []
 numIdTest, catIdTest = [], []
 dtypeSeparation(idTrain, numIdTrain, catIdTrain)
 dtypeSeparation(idTest, numIdTest, catIdTest)
-#resumeTable(idTrain[catId])
-#resumeTable(idTrain[numId])
-for col in idTrain.columns:
-    replaceMissingValues(idTrain, col)
 
-for col in idTest.columns:
-    replaceMissingValues(idTest, col)
-    
 df_train = transTrain.merge(idTrain, how = 'left', left_index=True, right_index=True, on = 'TransactionID')
 df_test = transTest.merge(idTest, how = 'left', left_index=True, right_index=True, on = 'TransactionID')    
 df_train = reduce_mem_usage(df_train)
@@ -693,13 +482,6 @@ numTrain, catTrain = [], []
 numTest, catTest = [], []
 dtypeSeparation(df_train, numTrain, catTrain)
 dtypeSeparation(df_test, numTest, catTest)
-#resumeTable(df_train[catTrain])
-
-for col in df_train.columns:
-    replaceMissingValues(df_train, col)
-
-for col in df_test.columns:
-    replaceMissingValues(df_test, col)
 
 for col in catTrain:
     if 'id_' in col:
@@ -746,118 +528,10 @@ for col in numTrain:
         distributionByTarget(df_train, col, 'isFraud')
         plt.show()
 
-resumeTrain = resumeTable(df_train)    
-trainMissing = list(resumeTrain [resumeTrain ['Missing Percentage'] > 0]['Name'])
+for col in numTrain:
+    if 'id_' in col:
+        plt.figure()
+        distributionByTarget(df_train, col, 'isFraud')
+        plt.show()
 
 
-resumeTest = resumeTable(df_test)
-testMissing = list(resumeTest[resumeTest['Missing Percentage'] > 0]['Name'])
-
-#Modelling
-        
-df_train_temp = df_train
-df_test_temp = df_test
-
-
-df_train.drop('id_33', axis = 1, inplace = True)
-df_test.drop('id_33', axis = 1, inplace = True)
-
-# =============================================================================
-# for f in df_train.drop('isFraud', axis=1).columns:
-#     if df_train[f].dtype=='O' or df_test[f].dtype=='O' or df_train[f].dtype=='object' or df_test[f].dtype=='object': 
-#         lbl = preprocessing.LabelEncoder()
-#         lbl.fit(list(df_train[f].unique()))
-#         lbl.fit(list(df_test[f].unique()))
-#         
-#         try:
-#             df_train[f] = lbl.transform(list(df_train[f].values))
-#             df_test[f] = lbl.transform(list(df_test[f].values)) 
-#         except: 
-#             print('This variable will go to one hot encoder_'+ str(f))
-#             print(df_train.shape)
-#             dummies = pd.get_dummies(df_train[f],prefix=f)
-#             df_train = df_train.join(dummies)
-#             df_train.drop(f, axis = 1, inplace = True)
-#             dummies = pd.get_dummies(df_test[f],prefix=f)
-#             df_test = df_test.join(dummies)  
-#             df_test.drop(f, axis = 1, inplace = True)
-# =============================================================================
-            
-for f in df_train.drop('isFraud', axis=1).columns:
-    if df_train[f].dtype=='O' or df_test[f].dtype=='O' or df_train[f].dtype=='object' or df_test[f].dtype=='object': 
-        lbl = preprocessing.LabelEncoder()
-        lbl.fit(list(df_train[f].values) + list(df_test[f].values))
-        df_train[f] = lbl.transform(list(df_train[f].values))
-        df_test[f] = lbl.transform(list(df_test[f].values))             
-
-df_train = reduce_mem_usage(df_train)
-df_test = reduce_mem_usage(df_test)
-            
-clf = RandomForestClassifier(
-    n_estimators=50,
-    criterion='gini',
-    max_depth=5,
-    min_samples_split=2,
-    min_samples_leaf=1,
-    min_weight_fraction_leaf=0.0,
-    max_features='auto',
-    max_leaf_nodes=None,
-    min_impurity_decrease=0.0,
-    min_impurity_split=None,
-    bootstrap=True,
-    oob_score=False,
-    n_jobs=-1,
-    random_state=0,
-    verbose=0,
-    warm_start=False,
-    class_weight='balanced'
-)
-
-
-best_XGB = xgb.XGBClassifier(objective="binary:logistic", random_state=42)
-scores = []
-cv = KFold(n_splits=10, random_state=42, shuffle=False)
-
-
-
-results = pd.DataFrame(columns=['training_score', 'test_score'])
-fprs, tprs, scores = [], [], []
-
-df_train.drop('Date', axis = 1, inplace = True)
-df_test.drop('Date', axis = 1, inplace = True)
-
-for (train, test), i in zip(cv.split(df_train.drop('isFraud',axis = 1), df_train['isFraud']), range(5)):
-    clf.fit(df_train.drop('isFraud',axis = 1).iloc[train], df_train['isFraud'].iloc[train])
-    _, _, auc_score_train = compute_roc_auc(train, df_train.drop('isFraud',axis = 1), df_train['isFraud'])
-    fpr, tpr, auc_score = compute_roc_auc(test, df_train.drop('isFraud',axis = 1), df_train['isFraud'])
-    scores.append((auc_score_train, auc_score))
-    fprs.append(fpr)
-    tprs.append(tpr)
-    print('Zavrsi')
-
-
-
-plot_roc_curve(fprs, tprs);
-pd.DataFrame(scores, columns=['AUC Train', 'AUC Test'])
-
-
-
-# =============================================================================
-# for train_index, test_index in cv.split(df_train):
-#     print("Train Index: ", train_index, "\n")
-#     print("Test Index: ", test_index)    
-#     df_train = df_train.drop('isFraud', axis = 1)
-#     X_train, X_test, y_train, y_test = df_train.iloc[train_index], df_train.iloc[test_index], df_train.iloc[train_index], df_train.iloc[test_index]
-#     print('Pero')
-#     best_XGB.fit(X_train, y_train)
-#     scores.append(best_XGB.score(X_test, y_test))
-# 
-# =============================================================================
-
-
-regressor = DecisionTreeRegressor(random_state=0)
-for train_index, test_index in cv.split(df_train):
-    X_train, X_test, y_train, y_test = df_train.iloc[train_index], df_train.iloc[test_index], df_train.iloc[train_index], df_train.iloc[test_index]
-    regressor.fit(X_train, y_train)
-    scores.append(regressor.score(X_test, y_test))
-    
