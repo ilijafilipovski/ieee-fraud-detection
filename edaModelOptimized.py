@@ -1,5 +1,5 @@
-import numpy as np # linear algebra
-import pandas as pd # data processing, CSV file I/O (e.g. pd.read_csv)
+import numpy as np
+import pandas as pd
 import scipy as sp
 from scipy import stats
 import matplotlib.pyplot as plt
@@ -9,28 +9,20 @@ import datetime
 from sklearn import linear_model
 from xgboost import XGBClassifier
 import xgboost as xgb
-from sklearn.model_selection import KFold,TimeSeriesSplit
 from sklearn.metrics import make_scorer
+from sklearn.preprocessing import MinMaxScaler
+from sklearn.preprocessing import MinMaxScaler
 from sklearn import preprocessing
 from sklearn.metrics import confusion_matrix, roc_auc_score, classification_report
 from sklearn.model_selection import StratifiedKFold, cross_val_score, KFold
 from sklearn.preprocessing import LabelEncoder
 from sklearn.ensemble import RandomForestClassifier
+from sklearn.svm import SVR
 from sklearn.metrics import roc_auc_score, roc_curve, auc
-from sklearn.tree import DecisionTreeRegressor
+from sklearn.model_selection import cross_val_predict
 pd.set_option('display.expand_frame_repr', False)
-
-transTest = pd.read_csv('test_transaction.csv')
-transTrain = pd.read_csv('train_transaction.csv')
-idTest = pd.read_csv('test_identity.csv')
-idTrain = pd.read_csv('train_identity.csv')
-
-transTrain = reduce_mem_usage(transTrain)
-transTest = reduce_mem_usage(transTest)
-idTrain = reduce_mem_usage(idTrain)
-idTest = reduce_mem_usage(idTest)
-
-
+    
+    
 def resumeTable(df):
     print('Input dataframe shape is {}'.format(df.shape))
     summary = pd.DataFrame(data = df.dtypes, columns=['dtypes'])
@@ -41,9 +33,9 @@ def resumeTable(df):
     summary['Unique'] = df.nunique().values
     summary['Unique Percentage'] = (summary['Unique']/df.shape[0])*100
     return summary
-'''
-Funkcija za namaluvaje na iskoristena memorija
-'''
+    '''
+    Funkcija za namaluvaje na iskoristena memorija
+    '''
 def reduce_mem_usage(df, verbose=True):
     numerics = ['int16', 'int32', 'int64', 'float16', 'float32', 'float64']
     start_mem = df.memory_usage().sum() / 1024**2    
@@ -85,7 +77,7 @@ def CalcOutliers(col):
     
     lowerOutliers = [x for x in col if x<lower]
     higherOutliers = [x for x in col if x>upper]
-    noOutliers = [x for x in col if x>lower and x<upper]
+    noOutliers = [x for x in col if x > lower and x < upper]
     
     totalOutliers = [x for x in col if x<lower or x>upper]
     
@@ -233,6 +225,17 @@ def plot_roc_curve(fprs, tprs):
     plt.show()
     return (f, ax)
 
+transTest = pd.read_csv('test_transaction.csv')
+transTrain = pd.read_csv('train_transaction.csv')
+idTest = pd.read_csv('test_identity.csv')
+idTrain = pd.read_csv('train_identity.csv')
+
+transTrain = reduce_mem_usage(transTrain)
+transTest = reduce_mem_usage(transTest)
+idTrain = reduce_mem_usage(idTrain)
+idTest = reduce_mem_usage(idTest)
+
+
 resume = resumeTable(transTrain)
 transTrain['isFraud'] = transTrain['isFraud'].astype('object')
 
@@ -373,13 +376,11 @@ resumeTable(transTrain[['P_emaildomain']])
 replaceEmails(transTrain, 'P_emaildomain')
 replaceEmails(transTest, 'P_emaildomain')
 
+
 plt.figure(figsize=(28,14))
 gp = createCountplotWithTarget(transTrain, 'P_emaildomain', 'isFraud')
 
 resumeTable(transTrain[['R_emaildomain']])
-replaceMissingValues(transTrain,'R_emaildomain')
-replaceMissingValues(transTest,'R_emaildomain')
-
 replaceEmails(transTrain, 'R_emaildomain')
 replaceEmails(transTest, 'R_emaildomain')
 plt.figure(figsize=(40,20))
@@ -464,6 +465,10 @@ transTest['Weekdays'] = transTest['Date'].dt.dayofweek
 transTest['Hours'] = transTest['Date'].dt.hour
 transTest['Days'] = transTest['Date'].dt.day
 
+transTrain.drop('Date', axis = 1, inplace = True)
+transTest.drop('Date', axis = 1, inplace = True)
+
+
 gdays = createCountplotWithTarget(transTrain, 'Days', 'isFraud')
 gweekdays = createCountplotWithTarget(transTrain, 'Weekdays', 'isFraud')
 ghours = createCountplotWithTarget(transTrain, 'Hours', 'isFraud')
@@ -477,6 +482,12 @@ df_train = transTrain.merge(idTrain, how = 'left', left_index=True, right_index=
 df_test = transTest.merge(idTest, how = 'left', left_index=True, right_index=True, on = 'TransactionID')    
 df_train = reduce_mem_usage(df_train)
 df_test = reduce_mem_usage(df_test)
+
+for col in df_train.columns:
+    replaceMissingValues(df_train, col)
+
+for col in df_test.columns:
+    replaceMissingValues(df_test, col)
     
 numTrain, catTrain = [], []
 numTest, catTest = [], []
@@ -488,6 +499,9 @@ for col in catTrain:
         plt.figure()
         createCountplotWithTarget(df_train, col, 'isFraud')
         plt.show()
+        
+
+    
         
 df_train.loc[df_train['id_30'].str.contains('Windows'), 'id_30'] = 'Windows'
 df_train.loc[df_train['id_30'].str.contains('iOS'), 'id_30'] = 'iOS'        
@@ -528,10 +542,62 @@ for col in numTrain:
         distributionByTarget(df_train, col, 'isFraud')
         plt.show()
 
-for col in numTrain:
-    if 'id_' in col:
-        plt.figure()
-        distributionByTarget(df_train, col, 'isFraud')
-        plt.show()
+df_train.drop('id_33', axis = 1, inplace = True)
+df_test.drop('id_33', axis = 1, inplace = True)
+
+#Modelling
+        
+for f in df_train.drop('isFraud', axis=1).columns:
+    if df_train[f].dtype == 'O' or df_test[f].dtype == 'O' or df_train[f].dtype == 'object' or df_test[f].dtype == 'object':
+        lbl = preprocessing.LabelEncoder()
+        lbl.fit(list(df_train[f].values) + list(df_test[f].values))
+        df_train[f] = lbl.transform(list(df_train[f].values))
+        df_test[f] = lbl.transform(list(df_test[f].values))
+
+df_train = reduce_mem_usage(df_train)
+df_test = reduce_mem_usage(df_test)
 
 
+X = df_train.drop('isFraud', axis = 1)
+y = df_train['isFraud']
+scaler = MinMaxScaler(feature_range=(0, 1))
+X = scaler.fit_transform(X)
+
+# =============================================================================
+# scores = []
+# best_svr = SVR(kernel='rbf')
+# cv = KFold(n_splits=10, random_state=42, shuffle=False)
+# for train_index, test_index in cv.split(X):
+#     print("Train Index: ", train_index, "\n")
+#     print("Test Index: ", test_index)
+# 
+#     X_train, X_test, y_train, y_test = X[train_index], X[test_index], y[train_index], y[test_index]
+#     best_svr.fit(X_train, y_train)
+#     scores.append(best_svr.score(X_test, y_test))
+#         
+# =============================================================================
+
+svr = SVR(kernel='rbf')
+clf = RandomForestClassifier(
+    n_estimators=50,
+    criterion='gini',
+    max_depth=5,
+    min_samples_split=2,
+    min_samples_leaf=1,
+    min_weight_fraction_leaf=0.0,
+    max_features='auto',
+    max_leaf_nodes=None,
+    min_impurity_decrease=0.0,
+    min_impurity_split=None,
+    bootstrap=True,
+    oob_score=False,
+    n_jobs=-1,
+    random_state=0,
+    verbose=0,
+    warm_start=False,
+    class_weight='balanced'
+)
+y_pred = cross_val_predict(clf, X, y, cv=10)
+y_pred1 = cross_val_predict(svr, X,y, cv = 5)
+report = classification_report(y, y_pred, output_dict=True)
+dfReport = pd.DataFrame(report)
